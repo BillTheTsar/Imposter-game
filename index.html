@@ -206,6 +206,40 @@ function playerView(room){
       <div class="mt8">
         <button class="btn primary" id="zoomOpen">🔎 Zoom</button>
       </div>
+    // Zoom wiring
+    const zoomBtn = $('#zoomOpen');
+
+    // create overlay once if missing
+    const ensureZoomOverlay = () => {
+      let z = $('#zoomOverlay');
+      if(!z){
+        z = document.createElement('div');
+        z.id = 'zoomOverlay';
+        z.className = 'fullzoom';
+        z.innerHTML = `<div class="bubble">
+            <textarea id="zoomText" class="textarea" readonly></textarea>
+            <div class="small mt8">Tap anywhere to close.</div>
+          </div>`;
+        document.body.appendChild(z);
+      }
+      return z;
+    };
+
+    const zoomOverlay = ensureZoomOverlay();
+    const zoomText = $('#zoomText');
+
+    zoomBtn.onclick = () => {
+      const a = $('#answer');
+      zoomText.value = a ? a.value : '';
+      zoomOverlay.classList.add('show');
+      // Prevent scroll bounce
+      document.body.style.overflow = 'hidden';
+    };
+
+    zoomOverlay.onclick = () => {
+      zoomOverlay.classList.remove('show');
+      document.body.style.overflow = '';
+    };
     </div>`;
 
   const ref = doc(db,'rooms',room);
