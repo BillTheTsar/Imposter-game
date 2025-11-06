@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Uni Imposter — Realtime</title>
+<title>Uni Imposter — Realtime (claims + hidden roles)</title>
 <style>
   :root{--bg:#0f1320;--card:#171b2b;--ink:#e7ecff;--muted:#a9b0c8;--accent:#8aa0ff}
   *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--ink)}
@@ -12,7 +12,7 @@
   .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:18px}
   .row{display:flex;gap:14px;flex-wrap:wrap} .col{flex:1 1 320px;min-width:280px}
   label{display:block;font-weight:600;margin:8px 0 6px}
-  input[type="text"]{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:#0f1220;color:var(--ink)}
+  input[type="text"], textarea{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:#0f1220;color:var(--ink)}
   .names{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
   .chip{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
   .chip input{border:none;background:transparent;color:var(--ink);width:120px;outline:none}
@@ -22,61 +22,76 @@
   .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.15);color:var(--ink)}
   .qbox{padding:16px;background:#0e1427;border:1px solid rgba(255,255,255,.1);border-radius:12px}
   .small{color:var(--muted);font-size:13px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#0e1427;border:1px solid rgba(255,255,255,.1)}
+  .list{display:flex;gap:8px;flex-wrap:wrap}
 </style>
 </head>
 <body>
 <div class="wrap" id="app"></div>
 
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
-  import {
-    getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp, updateDoc
-  } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyBbx__Iil3-FlOoLEb8VL2yEscafoXvpfg",
-    authDomain: "imposter-question-game-6dccc.firebaseapp.com",
-    projectId: "imposter-question-game-6dccc",
-    storageBucket: "imposter-question-game-6dccc.appspot.com",   // ✅ FIXED
-    messagingSenderId: "73958706315",
-    appId: "1:73958706315:web:79d5e0cae73788bf26188e",
-    measurementId: "G-5ECYXP4MPH"
-  };
+// 🔧 INSERT YOUR CONFIG HERE
+const firebaseConfig = {
+  apiKey: "AIzaSyBbx__Iil3-FlOoLEb8VL2yEscafoXvpfg",
+  authDomain: "imposter-question-game-6dccc.firebaseapp.com",
+  projectId: "imposter-question-game-6dccc",
+  storageBucket: "imposter-question-game-6dccc.appspot.com",
+  messagingSenderId: "73958706315",
+  appId: "1:73958706315:web:79d5e0cae73788bf26188e",
+  measurementId: "G-5ECYXP4MPH"
+};
 
-  const appFB = initializeApp(firebaseConfig);
-  const db = getFirestore(appFB);
+const appFB = initializeApp(firebaseConfig);
+const db = getFirestore(appFB);
 
-// --- question pool (short sample) ---
+// ===== Questions (single pool) =====
 const QUESTION_POOL = [
   "Who in the university is most relevant to a first-year student’s success?",
   "Who in the university is most relevant when choosing optional modules?",
   "Who in the university is most relevant for finding a summer internship?",
+  "Who in the university is most relevant when appealing a grade?",
+  "Who in the university is most relevant for exam adjustments?",
+  "Who in the university is most relevant for research opportunities?",
+  "Who in the university is most relevant when resolving a timetable clash?",
+  "Who in the university is most relevant for wellbeing support?",
+  "Who in the university is most relevant when starting a society?",
+  "Who in the university is most relevant for placement years?"
 ];
 
-// utils
+// ===== Utils =====
 const $ = (s,r=document)=>r.querySelector(s);
 const params = new URLSearchParams(location.search);
-const roomParam = params.get("room");
-const escapeHtml = s => String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+const roomParam = params.get('room') || '';
+const escapeHtml = s=>String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
 const randomId = (n=10)=> Array.from(crypto.getRandomValues(new Uint8Array(n))).map(b=>"ABCDEFGHJKMNPQRSTUVWXYZ23456789"[b%32]).join('');
-const fnv1a = s => { let h=0x811c9dc5>>>0; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619);} return h>>>0; };
-const xs32 = seed => { let x=seed>>>0; return ()=>{ x^=x<<13;x>>>=0;x^=x>>>17;x>>>=0;x^=x<<5;x>>>=0;return x>>>0; }; };
-const nextIndex = (rng,n)=> rng()%n;
+const fnv1a = s=>{let h=0x811c9dc5>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;};
+const xs32 = seed=>{let x=seed>>>0;return()=>{x^=x<<13;x>>>=0;x^=x>>>17;x>>>=0;x^=x<<5;x>>>=0;return x>>>0;};};
+const nextIndex=(rng,n)=> rng()%n;
+
+// ===== Presence/claims =====
+// Each device gets a stable clientId in localStorage
+const CLIENT_ID_KEY = 'imposter:clientId';
+let clientId = localStorage.getItem(CLIENT_ID_KEY);
+if(!clientId){ clientId = 'C-' + randomId(8); localStorage.setItem(CLIENT_ID_KEY, clientId); }
 
 render();
 
 function addNameChip(val=""){
-  const names = $("#names");
-  const chip = document.createElement("div");
-  chip.className = "chip";
+  const names = $('#names');
+  const chip = document.createElement('div');
+  chip.className = 'chip';
   chip.innerHTML = `<input type="text" placeholder="Player name" value="${escapeHtml(val)}" />
                     <button title="Remove" aria-label="Remove">×</button>`;
-  chip.querySelector("button").onclick = ()=> chip.remove();
+  chip.querySelector('button').onclick = ()=> chip.remove();
   names.appendChild(chip);
 }
 
 function hostView(){
-  const root = $("#app");
+  const root = $('#app');
   root.innerHTML = `
     <div class="h1">🎭 Uni Imposter — Realtime (host)</div>
     <div class="card">
@@ -84,7 +99,7 @@ function hostView(){
         <div class="col">
           <label>Room code</label>
           <input id="roomCode" type="text" placeholder="e.g. WARW-2025" />
-          <div class="small">Use letters/numbers (this becomes the Firestore doc id).</div>
+          <div class="small">Share one link: <span class="qbox">${location.origin+location.pathname}?room=YOURCODE</span></div>
 
           <label class="mt16">Players (enter names)</label>
           <div id="names" class="names"></div>
@@ -95,103 +110,108 @@ function hostView(){
             <button class="btn ghost" id="startRound">Start round</button>
             <button class="btn ghost" id="nextRound">Play again (new round)</button>
           </div>
-          <div class="small mt8">Links for players: share a single URL →
-            <span class="qbox">${location.origin + location.pathname}?room=YOURCODE</span></div>
         </div>
         <div class="col">
           <label>Current state</label>
           <div id="state" class="qbox small">No room yet.</div>
-          <div class="small mt8">Host never sees questions or roles.</div>
+          <label class="mt12">Joined (live)</label>
+          <div id="joined" class="qbox small">—</div>
+          <div class="small mt8">Host never sees questions or roles. A name can only be claimed by one device.</div>
         </div>
       </div>
     </div>`;
   for(let i=0;i<8;i++) addNameChip();
-  $("#addPlayer").onclick = ()=> addNameChip();
-  $("#saveRoom").onclick = saveRoom;
-  $("#startRound").onclick = startRound;
-  $("#nextRound").onclick = startRound;
+  $('#addPlayer').onclick=()=>addNameChip();
+  $('#saveRoom').onclick=saveRoom;
+  $('#startRound').onclick=startRound;
+  $('#nextRound').onclick=startRound;
 }
 
 async function saveRoom(){
-  const room = $("#roomCode").value.trim();
-  if(!room) return alert("Enter a room code");
-  const names = Array.from($("#names").querySelectorAll("input")).map(i=>i.value.trim()).filter(Boolean);
-  if(names.length < 3) return alert("Add at least 3 player names");
-  const ref = doc(db,"rooms",room);
-  await setDoc(ref, {
-    createdAt: serverTimestamp(),
-    players: names,
-    round: 0,
-    seed: randomId(),
-    impIndex: Math.floor(Math.random()*names.length)
-  }, { merge:true });
-  $("#state").innerHTML = `<div>Room: <b>${escapeHtml(room)}</b></div>
-    <div>Players: ${names.map(n=>`<span class="chip">${escapeHtml(n)}</span>`).join(" ")}</div>
-    <div class="small">Share: ${location.origin + location.pathname}?room=${encodeURIComponent(room)}</div>`;
-  alert("Room saved. Share the link above.");
+  const room = $('#roomCode').value.trim(); if(!room) return alert('Enter a room code');
+  const names = Array.from($('#names').querySelectorAll('input')).map(i=>i.value.trim()).filter(Boolean);
+  if(names.length<3) return alert('Add at least 3 names');
+  const ref = doc(db,'rooms',room);
+  await setDoc(ref, { createdAt: serverTimestamp(), players:names, round:0, seed: randomId(), impIndex: Math.floor(Math.random()*names.length), claims: {} }, {merge:true});
+  $('#state').innerHTML = `<div>Room: <b>${escapeHtml(room)}</b></div><div>Players: ${names.map(n=>`<span class='chip'>${escapeHtml(n)}</span>`).join(' ')}</div><div class='small'>Share: ${location.origin+location.pathname}?room=${encodeURIComponent(room)}</div>`;
+  // Listen for claims live
+  onSnapshot(ref, (snap)=>{
+    const data = snap.data()||{}; const claims = data.claims||{}; const namesArr = data.players||[];
+    const claimed = new Set(Object.values(claims).map(c=>c.name));
+    const html = namesArr.map(n=>`<span class='pill'>${escapeHtml(n)} ${claimed.has(n)?'• joined':''}</span>`).join(' ');
+    $('#joined').innerHTML = html || '—';
+  });
+  alert('Room saved. Share the link above.');
 }
 
 async function startRound(){
-  const room = $("#roomCode").value.trim();
-  if(!room) return alert("Enter a room code");
-  const ref = doc(db,"rooms",room);
-  const snap = await getDoc(ref); if(!snap.exists()) return alert("Save room first");
-  const data = snap.data(); const names = data.players || [];
-  await updateDoc(ref, {
-    round: (data.round||0)+1,
-    seed: randomId(),
-    impIndex: Math.floor(Math.random()*names.length)
-  });
+  const room = $('#roomCode').value.trim(); if(!room) return alert('Enter a room code');
+  const ref = doc(db,'rooms',room); const snap = await getDoc(ref); if(!snap.exists()) return alert('Save room first');
+  const data = snap.data(); const names = data.players||[]; await updateDoc(ref, { round:(data.round||0)+1, seed: randomId(), impIndex: Math.floor(Math.random()*names.length) });
 }
 
 function playerView(room){
-  const root = $("#app");
+  const root = $('#app');
   root.innerHTML = `
     <div class="h1">🎭 Uni Imposter — Player</div>
     <div class="card">
       <div class="row" style="align-items:center;justify-content:space-between;">
-        <div>Room: <b>${escapeHtml(room)}</b></div>
-        <div>Status: <span id="status">Waiting…</span></div>
+        <div class="pill">Room: <b>${escapeHtml(room)}</b></div>
+        <div class="pill">Status: <span id="status">Connecting…</span></div>
       </div>
-      <label class="mt16">Your name</label>
-      <input id="yourName" type="text" placeholder="Type your name" />
+      <label class="mt16">Choose your name</label>
+      <div id="nameChoices" class="list"></div>
+      <div class="small mt8">Only unclaimed names are clickable. If you disconnect, your device will reclaim your name when you return.</div>
       <label class="mt16">Your prompt</label>
-      <div id="prompt" class="qbox">Waiting for the host to start the round…</div>
+      <div id="prompt" class="qbox">—</div>
       <label class="mt16">Your answer</label>
-      <textarea id="answer" class="textarea" placeholder="Type a short answer"></textarea>
-      <div class="mt16"><a class="btn ghost" href="${location.origin + location.pathname}">Host view</a></div>
+      <textarea id="answer" placeholder="Type a short answer"></textarea>
     </div>`;
-  const promptEl = $("#prompt");
-  const statusEl = $("#status");
-  const nameEl = $("#yourName");
-  const ref = doc(db,"rooms",room);
-  onSnapshot(ref, (snap)=>{
-    if(!snap.exists()){ statusEl.textContent = "Room not found"; return; }
+
+  const ref = doc(db,'rooms',room);
+  onSnapshot(ref, async (snap)=>{
+    if(!snap.exists()){ $('#status').textContent='Room not found'; return; }
     const data = snap.data();
-    const names = data.players || [];
-    const round = data.round || 0;
-    const seed = data.seed || "";
-    const impIndex = data.impIndex ?? -1;
-    if(round<=0){ statusEl.textContent = "Waiting for host…"; return; }
-    statusEl.textContent = `Round ${round}`;
+    const names = data.players||[]; const round = data.round||0; const seed = data.seed||''; const impIndex = data.impIndex ?? -1; const claims = data.claims||{};
 
-    // deterministic pick
-    const base = fnv1a(room + "|" + seed);
-    const rng = xs32(base);
-    const n = QUESTION_POOL.length;
-    const commonIdx = nextIndex(rng,n);
-    let impostorIdx = commonIdx; while(impostorIdx===commonIdx) impostorIdx = nextIndex(rng,n);
+    // Build name choice UI with claim locking
+    const claimedBy = {}; Object.entries(claims).forEach(([cid,val])=>{ if(val && val.name) claimedBy[val.name]=cid; });
+    const myClaim = claims[clientId];
+    const container = $('#nameChoices');
+    if(!container.dataset.rendered || container.dataset.rendered!==JSON.stringify(claims)){
+      container.innerHTML = names.map((n,i)=>{
+        const locked = claimedBy[n] && claimedBy[n]!==clientId;
+        return `<button class="btn ${locked?'ghost':'primary'}" data-name="${escapeHtml(n)}" ${locked?'disabled':''}>${escapeHtml(n)}${locked?' (taken)':''}</button>`;
+      }).join(' ');
+      container.dataset.rendered = JSON.stringify(claims);
+      container.querySelectorAll('button').forEach(btn=>{
+        btn.onclick = async ()=>{
+          const chosen = btn.getAttribute('data-name');
+          await updateDoc(ref, { [`claims.${clientId}`]: { name: chosen, at: serverTimestamp() } });
+        };
+      });
+    }
 
-    const your = (nameEl.value || "").trim();
-    const yourIndex = Math.max(0, names.findIndex(x=>x.toLowerCase()===your.toLowerCase()));
+    // If we have a claim, compute prompt
+    const myName = (myClaim && myClaim.name) ? myClaim.name : null;
+    if(!myName){ $('#status').textContent = 'Pick your name'; $('#prompt').textContent='—'; return; }
+    const yourIndex = Math.max(0, names.findIndex(x=>x.toLowerCase()===myName.toLowerCase()));
+    $('#status').textContent = `You are: ${escapeHtml(myName)} • ${round>0?('Round '+round):'waiting for host'}`;
+
+    if(round<=0){ $('#prompt').textContent='Waiting for host…'; return; }
+
+    const base = fnv1a(room+'|'+seed); const rng = xs32(base); const n = QUESTION_POOL.length;
+    const commonIdx = nextIndex(rng,n); let impostorIdx = commonIdx; while(impostorIdx===commonIdx) impostorIdx = nextIndex(rng,n);
     const isImposter = (yourIndex === impIndex);
-    promptEl.textContent = QUESTION_POOL[ isImposter ? impostorIdx : commonIdx ] || "—";
+    $('#prompt').textContent = QUESTION_POOL[ isImposter ? impostorIdx : commonIdx ] || '—';
+
+    // persist answer per round per client
+    const key = `ans:${room}:${clientId}:${round}`; const ans = $('#answer'); ans.value = localStorage.getItem(key)||''; ans.oninput=()=>localStorage.setItem(key, ans.value);
   });
 }
 
 function render(){
-  if(!roomParam) hostView();
-  else playerView(roomParam);
+  if(!roomParam) hostView(); else playerView(roomParam);
 }
 </script>
 </body>
