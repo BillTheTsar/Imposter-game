@@ -28,21 +28,23 @@
 <div class="wrap" id="app"></div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+  import {
+    getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp, updateDoc
+  } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBbx__Iil3-FlOoLEb8VL2yEscafoXvpfg",
-  authDomain: "imposter-question-game-6dccc.firebaseapp.com",
-  projectId: "imposter-question-game-6dccc",
-  storageBucket: "imposter-question-game-6dccc.appspot.com",   // fixed
-  messagingSenderId: "73958706315",
-  appId: "1:73958706315:web:79d5e0cae73788bf26188e",
-  measurementId: "G-5ECYXP4MPH"
-};
+  const firebaseConfig = {
+    apiKey: "AIzaSyBbx__Iil3-FlOoLEb8VL2yEscafoXvpfg",
+    authDomain: "imposter-question-game-6dccc.firebaseapp.com",
+    projectId: "imposter-question-game-6dccc",
+    storageBucket: "imposter-question-game-6dccc.appspot.com",   // ✅ FIXED
+    messagingSenderId: "73958706315",
+    appId: "1:73958706315:web:79d5e0cae73788bf26188e",
+    measurementId: "G-5ECYXP4MPH"
+  };
 
-const appFB = initializeApp(firebaseConfig);
-const db = getFirestore(appFB);
+  const appFB = initializeApp(firebaseConfig);
+  const db = getFirestore(appFB);
 
 // --- question pool (short sample) ---
 const QUESTION_POOL = [
