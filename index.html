@@ -25,10 +25,31 @@
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
   .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#0e1427;border:1px solid rgba(255,255,255,.1)}
   .list{display:flex;gap:8px;flex-wrap:wrap}
+  .fullzoom{
+      position:fixed; inset:0;
+      background:rgba(10,12,24,.98);
+      display:none; align-items:center; justify-content:center;
+      z-index:9999; padding:5vw;
+  }
+  .fullzoom.show{ display:flex; }
+  .fullzoom .bubble{ width:100%; max-width:1100px; }
+  .fullzoom textarea{
+      width:100%; height:70vh;
+      font-size:clamp(24px,3.2vw,40px);
+      border-radius:16px;
+      background:#0c0f1a; color:var(--ink);
+      border:1px solid rgba(255,255,255,.12);
+  }
 </style>
 </head>
 <body>
 <div class="wrap" id="app"></div>
+<div class="fullzoom" id="zoomOverlay" aria-modal="true" role="dialog">
+  <div class="bubble">
+    <textarea id="zoomText" class="textarea" readonly></textarea>
+    <div class="small mt8">Tap anywhere to close.</div>
+  </div>
+</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
@@ -50,16 +71,33 @@ const db = getFirestore(appFB);
 
 // ===== Questions (single pool) =====
 const QUESTION_POOL = [
-  "Who in the university is most relevant to a first-year student’s success?",
-  "Who in the university is most relevant when choosing optional modules?",
-  "Who in the university is most relevant for finding a summer internship?",
-  "Who in the university is most relevant when appealing a grade?",
-  "Who in the university is most relevant for exam adjustments?",
-  "Who in the university is most relevant for research opportunities?",
-  "Who in the university is most relevant when resolving a timetable clash?",
-  "Who in the university is most relevant for wellbeing support?",
-  "Who in the university is most relevant when starting a society?",
-  "Who in the university is most relevant for placement years?"
+  "A lecturer posts slides with blatant mistakes. Who do you think of?",
+  "You desperately need to borrow a hundred pounds. Who do you ask?",
+  "Who would you do a business case study group project with?",
+  "Who is most likely to be caught using ChatGPT for an assignment?",
+  "Your research requires a certain scientific claim to be true. Who is most likely to create fake data to support it?",
+  "Whose name is definitely getting mispronounced in graduation?",
+  "Who is most likely to push for a field trip at the British Museum?",
+  "Who has an iconic catchphrase?",
+  "Who is most likely to have a crush on a lecturer?",
+  "You find an exam paper in a public printer. Who do you contact first?",
+  "Whose life do you want to experience for a day?",
+  "Who can you imagine being a millionaire lawyer in 10 years?",
+  "Who is most likely to be turned on by continuous coughing and sneezing in a big lecture?",
+  "Who gives 'I do hard set theory in my free time' energy?",
+  "Who claims to hate group projects but still does all the work anyway even when no one asked them to?",
+  "Who would you discuss 'Do you believe in the axiom of choice' with?",
+  "Who has already had a villain arc in their life?",
+  "Who would make up weird Greek-Roman-Sanscrit notation to express vanilla concepts everyone knows?",
+  "Who would be the main character in a department scandal?",
+  "Who secretly enjoys 9 am lectures?",
+  "Who most likely has a definitely NSFW shrine in their room?",
+  "Who would pay to print black and white lecture notes in full color 'just in case' there is color somewhere?",
+  "Who treats LaTeX like a personality trait?",
+  "Who is already 'emotionally retired' from academia?",
+  "You walk out from an exam you just bombed. Who do you talk to first?",
+  "Who would start a Measure Theory podcast that no one asked for?",
+  "
 ];
 
 // ===== Utils =====
@@ -164,7 +202,10 @@ function playerView(room){
       <label class="mt16">Your prompt</label>
       <div id="prompt" class="qbox">—</div>
       <label class="mt16">Your answer</label>
-      <textarea id="answer" placeholder="Type a short answer"></textarea>
+      <textarea id="answer" class="textarea" placeholder="Type a short answer"></textarea>
+      <div class="mt8">
+        <button class="btn primary" id="zoomOpen">🔎 Zoom</button>
+      </div>
     </div>`;
 
   const ref = doc(db,'rooms',room);
