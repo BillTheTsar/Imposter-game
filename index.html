@@ -3,14 +3,16 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Uni Imposter — Realtime (claims + hidden roles)</title>
+<title>Uni Imposter — Realtime (claims + hidden roles + zoom)</title>
 <style>
   :root{--bg:#0f1320;--card:#171b2b;--ink:#e7ecff;--muted:#a9b0c8;--accent:#8aa0ff}
-  *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--ink)}
   .wrap{max-width:980px;margin:0 auto;padding:24px}
   .h1{font-size:clamp(22px,2.6vw,32px);font-weight:800;margin:6px 0 18px}
   .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:18px}
-  .row{display:flex;gap:14px;flex-wrap:wrap} .col{flex:1 1 320px;min-width:280px}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .col{flex:1 1 320px;min-width:280px}
   label{display:block;font-weight:600;margin:8px 0 6px}
   input[type="text"], textarea{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:#0f1220;color:var(--ink)}
   .names{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
@@ -25,25 +27,16 @@
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
   .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#0e1427;border:1px solid rgba(255,255,255,.1)}
   .list{display:flex;gap:8px;flex-wrap:wrap}
-  .fullzoom{
-      position:fixed; inset:0;
-      background:rgba(10,12,24,.98);
-      display:none; align-items:center; justify-content:center;
-      z-index:9999; padding:5vw;
-  }
-  .fullzoom.show{ display:flex; }
-  .fullzoom .bubble{ width:100%; max-width:1100px; }
-  .fullzoom textarea{
-      width:100%; height:70vh;
-      font-size:clamp(24px,3.2vw,40px);
-      border-radius:16px;
-      background:#0c0f1a; color:var(--ink);
-      border:1px solid rgba(255,255,255,.12);
-  }
+  /* Zoom overlay */
+  .fullzoom{position:fixed;inset:0;background:rgba(10,12,24,.98);display:none;align-items:center;justify-content:center;z-index:9999;padding:5vw}
+  .fullzoom.show{display:flex}
+  .fullzoom .bubble{width:100%;max-width:1100px}
+  .fullzoom textarea{width:100%;height:70vh;font-size:clamp(24px,3.2vw,40px);border-radius:16px;background:#0c0f1a;color:var(--ink);border:1px solid rgba(255,255,255,.12)}
 </style>
 </head>
 <body>
 <div class="wrap" id="app"></div>
+<!-- zoom overlay lives outside app so it persists across renders -->
 <div class="fullzoom" id="zoomOverlay" aria-modal="true" role="dialog">
   <div class="bubble">
     <textarea id="zoomText" class="textarea" readonly></textarea>
@@ -55,7 +48,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 
-// 🔧 INSERT YOUR CONFIG HERE
+// --- Firebase config (yours) ---
 const firebaseConfig = {
   apiKey: "AIzaSyBbx__Iil3-FlOoLEb8VL2yEscafoXvpfg",
   authDomain: "imposter-question-game-6dccc.firebaseapp.com",
@@ -96,8 +89,7 @@ const QUESTION_POOL = [
   "Who treats LaTeX like a personality trait?",
   "Who is already 'emotionally retired' from academia?",
   "You walk out from an exam you just bombed. Who do you talk to first?",
-  "Who would start a Measure Theory podcast that no one asked for?",
-  "
+  "Who would start a Measure Theory podcast that no one asked for?"
 ];
 
 // ===== Utils =====
@@ -111,7 +103,6 @@ const xs32 = seed=>{let x=seed>>>0;return()=>{x^=x<<13;x>>>=0;x^=x>>>17;x>>>=0;x
 const nextIndex=(rng,n)=> rng()%n;
 
 // ===== Presence/claims =====
-// Each device gets a stable clientId in localStorage
 const CLIENT_ID_KEY = 'imposter:clientId';
 let clientId = localStorage.getItem(CLIENT_ID_KEY);
 if(!clientId){ clientId = 'C-' + randomId(8); localStorage.setItem(CLIENT_ID_KEY, clientId); }
@@ -171,7 +162,6 @@ async function saveRoom(){
   const ref = doc(db,'rooms',room);
   await setDoc(ref, { createdAt: serverTimestamp(), players:names, round:0, seed: randomId(), impIndex: Math.floor(Math.random()*names.length), claims: {} }, {merge:true});
   $('#state').innerHTML = `<div>Room: <b>${escapeHtml(room)}</b></div><div>Players: ${names.map(n=>`<span class='chip'>${escapeHtml(n)}</span>`).join(' ')}</div><div class='small'>Share: ${location.origin+location.pathname}?room=${encodeURIComponent(room)}</div>`;
-  // Listen for claims live
   onSnapshot(ref, (snap)=>{
     const data = snap.data()||{}; const claims = data.claims||{}; const namesArr = data.players||[];
     const claimed = new Set(Object.values(claims).map(c=>c.name));
@@ -203,44 +193,23 @@ function playerView(room){
       <div id="prompt" class="qbox">—</div>
       <label class="mt16">Your answer</label>
       <textarea id="answer" class="textarea" placeholder="Type a short answer"></textarea>
-      <div class="mt8">
-        <button class="btn primary" id="zoomOpen">🔎 Zoom</button>
-      </div>
-    // Zoom wiring
-    const zoomBtn = $('#zoomOpen');
-
-    // create overlay once if missing
-    const ensureZoomOverlay = () => {
-      let z = $('#zoomOverlay');
-      if(!z){
-        z = document.createElement('div');
-        z.id = 'zoomOverlay';
-        z.className = 'fullzoom';
-        z.innerHTML = `<div class="bubble">
-            <textarea id="zoomText" class="textarea" readonly></textarea>
-            <div class="small mt8">Tap anywhere to close.</div>
-          </div>`;
-        document.body.appendChild(z);
-      }
-      return z;
-    };
-
-    const zoomOverlay = ensureZoomOverlay();
-    const zoomText = $('#zoomText');
-
-    zoomBtn.onclick = () => {
-      const a = $('#answer');
-      zoomText.value = a ? a.value : '';
-      zoomOverlay.classList.add('show');
-      // Prevent scroll bounce
-      document.body.style.overflow = 'hidden';
-    };
-
-    zoomOverlay.onclick = () => {
-      zoomOverlay.classList.remove('show');
-      document.body.style.overflow = '';
-    };
+      <div class="mt8"><button class="btn primary" id="zoomOpen">🔎 Zoom</button></div>
     </div>`;
+
+  // --- Zoom wiring (must be AFTER render) ---
+  const zoomBtn = $('#zoomOpen');
+  const zoomOverlay = $('#zoomOverlay');
+  const zoomText = $('#zoomText');
+  zoomBtn.onclick = () => {
+    const a = $('#answer');
+    zoomText.value = a ? a.value : '';
+    zoomOverlay.classList.add('show');
+    document.body.style.overflow = 'hidden';
+  };
+  zoomOverlay.onclick = () => {
+    zoomOverlay.classList.remove('show');
+    document.body.style.overflow = '';
+  };
 
   const ref = doc(db,'rooms',room);
   onSnapshot(ref, async (snap)=>{
@@ -253,7 +222,7 @@ function playerView(room){
     const myClaim = claims[clientId];
     const container = $('#nameChoices');
     if(!container.dataset.rendered || container.dataset.rendered!==JSON.stringify(claims)){
-      container.innerHTML = names.map((n,i)=>{
+      container.innerHTML = names.map((n)=>{
         const locked = claimedBy[n] && claimedBy[n]!==clientId;
         return `<button class="btn ${locked?'ghost':'primary'}" data-name="${escapeHtml(n)}" ${locked?'disabled':''}>${escapeHtml(n)}${locked?' (taken)':''}</button>`;
       }).join(' ');
