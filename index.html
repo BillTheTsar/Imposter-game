@@ -70,7 +70,7 @@ const QUESTION_POOL = [
   "Who is most likely to be caught using ChatGPT for an assignment?",
   "Your research requires a certain scientific claim to be true. Who is most likely to create fake data to support it?",
   "Whose name is definitely getting mispronounced in graduation?",
-  "Who is most likely to push for a field trip at the British Museum?",
+  "Who would push for a field trip to the British Museum?",
   "Who has an iconic catchphrase?",
   "Who is most likely to have a crush on a lecturer?",
   "You find an exam paper in a public printer. Who do you contact first?",
@@ -81,7 +81,6 @@ const QUESTION_POOL = [
   "Who claims to hate group projects but still does all the work anyway even when no one asked them to?",
   "Who would you discuss 'Do you believe in the axiom of choice' with?",
   "Who has already had a villain arc in their life?",
-  "Who would make up weird Greek-Roman-Sanscrit notation to express vanilla concepts everyone knows?",
   "Who would be the main character in a department scandal?",
   "Who secretly enjoys 9 am lectures?",
   "Who most likely has a definitely NSFW shrine in their room?",
@@ -89,7 +88,51 @@ const QUESTION_POOL = [
   "Who treats LaTeX like a personality trait?",
   "Who is already 'emotionally retired' from academia?",
   "You walk out from an exam you just bombed. Who do you talk to first?",
-  "Who would start a Measure Theory podcast that no one asked for?"
+  "Who would start a Measure Theory podcast that no one asked for?",
+  "Who would write a strongly-worded SU motion about exam hall temperatures?",
+  "Who has a secret and constantly updated spreadsheet ranking all the lecturers?",
+  "Who secretly worships Boehning and Bjorn and is waiting for the day they become mainstream?",
+  "Who would pretend to be fully interested and paying attention in a dead conversation?",
+  "Who is personally and visibly offended when someone criticizes their proof?",
+  "Who would fake a timetable clash to avoid group work?",
+  "Who is most likely to romanticise 'suffering for the beauty of mathematics'?",
+  "Who would say 'it’s actually trivial' and then cannot prove it?",
+  "Who saves office hours in their calendars with alarms?",
+  "Who races to say 'thank you' first to a lecturer at the end of a Zoom call?",
+  "Who makes you feel much smarter than you actually are?",
+  "Who flips back to Y1 Analysis whenever a lecturer says 'by the FTC'?"
+  "Who would visibly forget the hypothesis mid-proof?",
+  "Who would ask 'Questions?' out of politeness even though they know nobody understood anything?",
+  "Who would offer life advice they absolutely do not follow themselves?",
+  "Who is always 'five minutes away' no matter where they are?",
+  "Who would get in a relationship, break up, and let nobody know anything happened?",
+  "Who would unironically say 'I don't do drama' while being the source of it?",
+  "Who would go to therapy one time and declare spiritual enlightenment?",
+  "Who would join a club just to see what the vibe is and then run for president?",
+  "Who would you trust to see your photos album?",
+  "Who would make plans they already know they can't follow through?",
+  "Who would shoplift because they forgot they were holding something?",
+  "Who has a mysterious source of money nobody knows about?",
+  "You are emotionally wrecked. Who would you not talk to?",
+  "Who would send a paragraph-long happy birthday message in a group chat?",
+  "Who would thrive in a monastery and return cleansed?",
+  "Who has perfected the art of ghosting and acting as if nothing happened?",
+  "Who would rebrand their entire personality after one lecture they attended?",
+  "Who would reply 'haha yeah' to a heartfelt message?",
+  "Who would romanticize walking in the rain and be sick for two weeks?",
+  "Who would look better if only they changed their hairstyle?",
+  "Who would do a dramatic exit and return because they forgot something?",
+  "Who would laugh during a funeral?",
+  "Who would lie down in the middle of campus if life became even slightly inconvenient?",
+  "Who would fall in love with someone who gave them a pen once?",
+  "Who would say 'I’m over it' while building a shrine in their Notes app?",
+  "Who would say 'I'll be mysterious' and then overshare immediately?",
+  "Who acts like they're in a movie when they listen to music?",
+  "Who has the emotional range of a Victorian poet in winter?",
+  "Who would retell a story in a way that makes them sound like a legend?",
+  "Who would fall in love with the barista because of 'vibe resonance'?",
+  "Who uses their phone background to reflect character development?",
+  
 ];
 
 // ===== Utils =====
@@ -243,10 +286,21 @@ function playerView(room){
 
     if(round<=0){ $('#prompt').textContent='Waiting for host…'; return; }
 
-    const base = fnv1a(room+'|'+seed); const rng = xs32(base); const n = QUESTION_POOL.length;
-    const commonIdx = nextIndex(rng,n); let impostorIdx = commonIdx; while(impostorIdx===commonIdx) impostorIdx = nextIndex(rng,n);
+    // Generate a deterministic shuffle for the room itself (does NOT change every round)
+    const roomBase = fnv1a(room);
+    const roomRng = xs32(roomBase);
+    const shuffled = QUESTION_POOL.slice().sort(() => (roomRng() % 2 ? 1 : -1));
+
+    // Now round randomness picks positions in the *shuffled* deck
+    const base = fnv1a(room + '|' + seed);
+    const rng = xs32(base);
+    const n = shuffled.length;
     const isImposter = (yourIndex === impIndex);
-    $('#prompt').textContent = QUESTION_POOL[ isImposter ? impostorIdx : commonIdx ] || '—';
+
+    const commonIdx = nextIndex(rng, n);
+    let impostorIdx = commonIdx;
+    while(impostorIdx === commonIdx) impostorIdx = nextIndex(rng, n);
+    $('#prompt').textContent = shuffled[ isImposter ? impostorIdx : commonIdx ] || '—';
 
     // persist answer per round per client
     const key = `ans:${room}:${clientId}:${round}`; const ans = $('#answer'); ans.value = localStorage.getItem(key)||''; ans.oninput=()=>localStorage.setItem(key, ans.value);
