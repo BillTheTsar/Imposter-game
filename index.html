@@ -3,272 +3,193 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Uni Imposter — Single Pool + Realtime</title>
+<title>Uni Imposter — Realtime</title>
 <style>
   :root{--bg:#0f1320;--card:#171b2b;--ink:#e7ecff;--muted:#a9b0c8;--accent:#8aa0ff}
-  *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--ink)}
-  a{color:var(--accent)}
+  *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--ink)}
   .wrap{max-width:980px;margin:0 auto;padding:24px}
   .h1{font-size:clamp(22px,2.6vw,32px);font-weight:800;margin:6px 0 18px}
   .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:18px}
-  .row{display:flex;gap:14px;flex-wrap:wrap}
-  .col{flex:1 1 320px;min-width:280px}
+  .row{display:flex;gap:14px;flex-wrap:wrap} .col{flex:1 1 320px;min-width:280px}
   label{display:block;font-weight:600;margin:8px 0 6px}
-  input[type="text"], select{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:#0f1220;color:var(--ink);outline:none}
+  input[type="text"]{width:100%;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:#0f1220;color:var(--ink)}
   .names{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
   .chip{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
   .chip input{border:none;background:transparent;color:var(--ink);width:120px;outline:none}
   .chip button{background:none;border:none;color:#b9c0d6;cursor:pointer;font-size:16px}
-  .btn{appearance:none;border:none;cursor:pointer;padding:12px 16px;border-radius:12px;font-weight:700;letter-spacing:.2px}
+  .btn{appearance:none;border:none;cursor:pointer;padding:12px 16px;border-radius:12px;font-weight:700}
   .btn.primary{background:linear-gradient(180deg,var(--accent),#4669ff);color:white}
   .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,.15);color:var(--ink)}
-  .small{color:var(--muted);font-size:13px}
-  .mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mt24{margin-top:24px}
   .qbox{padding:16px;background:#0e1427;border:1px solid rgba(255,255,255,.1);border-radius:12px}
-  .textarea{width:100%;min-height:120px;padding:12px;border-radius:12px;background:#0c0f1a;border:1px solid rgba(255,255,255,.12);color:var(--ink);resize:vertical;outline:none}
-  .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#0e1427;border:1px solid rgba(255,255,255,.1)}
-  .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+  .small{color:var(--muted);font-size:13px}
 </style>
 </head>
 <body>
 <div class="wrap" id="app"></div>
 
 <script type="module">
-/* =========================
-   🔧 Firebase (Firestore) setup
-   1) Create a Firebase project at console.firebase.google.com
-   2) Add a Web App → copy the config into firebaseConfig below
-   3) In Firestore, create a collection `rooms` where each doc id = your room code
-   ========================= */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
 import { getFirestore, doc, getDoc, setDoc, onSnapshot, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 
-// ⬇️ Replace with your Firebase project config
 const firebaseConfig = {
-    apiKey: "AIzaSyBbx__Iil3-FlOoLEb8VL2yEscafoXvpfg",
-    authDomain: "imposter-question-game-6dccc.firebaseapp.com",
-    projectId: "imposter-question-game-6dccc",
-    storageBucket: "imposter-question-game-6dccc.firebasestorage.app",
-    messagingSenderId: "73958706315",
-    appId: "1:73958706315:web:79d5e0cae73788bf26188e",
-    measurementId: "G-5ECYXP4MPH"
-  };
+  apiKey: "AIzaSyBbx__Iil3-FlOoLEb8VL2yEscafoXvpfg",
+  authDomain: "imposter-question-game-6dccc.firebaseapp.com",
+  projectId: "imposter-question-game-6dccc",
+  storageBucket: "imposter-question-game-6dccc.appspot.com",   // fixed
+  messagingSenderId: "73958706315",
+  appId: "1:73958706315:web:79d5e0cae73788bf26188e",
+  measurementId: "G-5ECYXP4MPH"
+};
 
 const appFB = initializeApp(firebaseConfig);
 const db = getFirestore(appFB);
 
-/* =========================
-   Question POOL (single pool)
-   ========================= */
+// --- question pool (short sample) ---
 const QUESTION_POOL = [
   "Who in the university is most relevant to a first-year student’s success?",
   "Who in the university is most relevant when choosing optional modules?",
   "Who in the university is most relevant for finding a summer internship?",
-  "Who in the university is most relevant when appealing a grade?",
-  "Who in the university is most relevant for exam adjustments?",
-  "Who in the university is most relevant for research opportunities?",
-  "Who in the university is most relevant when resolving a timetable clash?",
-  "Who in the university is most relevant for wellbeing support?",
-  "Who in the university is most relevant when starting a society?",
-  "Who in the university is most relevant for placement years?",
-  "Who in the university is most relevant for Erasmus/Study Abroad?",
-  "Who in the university is most relevant for coursework extensions?",
-  "Who in the university is most relevant for accommodation issues?",
-  "Who in the university is most relevant for scholarship questions?",
-  "Who in the university is most relevant for lab safety training?",
-  "Who in the university is most relevant to module feedback?",
-  "Who in the university is most relevant for student complaints?",
-  "Who in the university is most relevant to disability support?",
-  "Who in the university is most relevant for careers advice?",
-  "Who in the university is most relevant for exam scheduling?",
 ];
 
-/* =========================
-   Utilities
-   ========================= */
-const $ = (s, r=document)=>r.querySelector(s);
+// utils
+const $ = (s,r=document)=>r.querySelector(s);
 const params = new URLSearchParams(location.search);
+const roomParam = params.get("room");
+const escapeHtml = s => String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+const randomId = (n=10)=> Array.from(crypto.getRandomValues(new Uint8Array(n))).map(b=>"ABCDEFGHJKMNPQRSTUVWXYZ23456789"[b%32]).join('');
+const fnv1a = s => { let h=0x811c9dc5>>>0; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619);} return h>>>0; };
+const xs32 = seed => { let x=seed>>>0; return ()=>{ x^=x<<13;x>>>=0;x^=x>>>17;x>>>=0;x^=x<<5;x>>>=0;return x>>>0; }; };
+const nextIndex = (rng,n)=> rng()%n;
 
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-}
-function randomId(len=8){
-  const chars="ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-  let s=""; for(let i=0;i<len;i++) s += chars[Math.floor(Math.random()*chars.length)];
-  return s;
-}
-// FNV-1a + xorshift32 for deterministic indices (no server logic required on client)
-function fnv1a(str){ let h=0x811c9dc5>>>0; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619);} return h>>>0; }
-function xs32(seed){ let x=seed>>>0; return ()=>{ x^=x<<13; x>>>=0; x^=x>>>17; x>>>=0; x^=x<<5; x>>>=0; return x>>>0; }; }
-function nextIndex(rng, n){ return rng()%n; }
-
-/* =========================
-   Render
-   ========================= */
 render();
 
-async function render(){
-  const root = $('#app');
-  const roomParam = params.get('room');
-  const isPlayerView = !!roomParam;
-
-  if(!isPlayerView){
-    // HOST VIEW
-    root.innerHTML = `
-      <div class="h1">🎭 Uni Imposter — Realtime (host)</div>
-      <div class="card">
-        <div class="row">
-          <div class="col">
-            <label>Room code</label>
-            <input id="roomCode" type="text" placeholder="e.g. WARW-2025" />
-            <div class="small">Use letters/numbers (this becomes the Firestore doc id).</div>
-
-            <label class="mt16">Players (enter names)</label>
-            <div id="names" class="names"></div>
-            <button class="btn ghost mt8" id="addPlayer">+ Add player</button>
-
-            <div class="mt16">
-              <button class="btn primary" id="saveRoom">Create/Update room</button>
-              <button class="btn ghost" id="startRound">Start round</button>
-              <button class="btn ghost" id="nextRound">Play again (new round)</button>
-            </div>
-            <div class="small mt8">Links for players: share a single URL → <span class="mono">${location.origin + location.pathname}?room=YOURCODE</span></div>
-          </div>
-          <div class="col">
-            <label>Current state</label>
-            <div id="state" class="qbox small">No room yet.</div>
-            <div class="mt12 small">Note: host never sees questions or roles. Players’ devices compute questions locally from the round seed.</div>
-          </div>
-        </div>
-      </div>`;
-
-    // Seed 8 chips
-    for(let i=0;i<8;i++) addNameChip();
-    $('#addPlayer').onclick = ()=> addNameChip();
-
-    $('#saveRoom').onclick = async ()=>{
-      const room = $('#roomCode').value.trim();
-      if(!room) return alert('Enter a room code');
-      const names = Array.from($('#names').querySelectorAll('input')).map(i=>i.value.trim()).filter(Boolean);
-      if(names.length < 3) return alert('Add at least 3 player names');
-      const ref = doc(db,'rooms',room);
-      await setDoc(ref, {
-        createdAt: serverTimestamp(),
-        players: names,
-        round: 0,
-        seed: randomId(10),
-        impIndex: Math.floor(Math.random()*names.length)
-      }, { merge:true });
-      $('#state').innerHTML = `<div class="pill">Room: <span class="mono">${escapeHtml(room)}</span></div>
-        <div class="mt8">Players: ${names.map(n=>`<span class='pill' style='margin-right:6px'>${escapeHtml(n)}</span>`).join('')}</div>
-        <div class="mt8 small">Share this link: <span class='mono'>${location.origin + location.pathname}?room=${encodeURIComponent(room)}</span></div>`;
-      alert('Room saved. Share the link above.');
-    };
-
-    $('#startRound').onclick = async ()=>{
-      const room = $('#roomCode').value.trim();
-      if(!room) return alert('Enter a room code');
-      const ref = doc(db,'rooms',room);
-      const snap = await getDoc(ref); if(!snap.exists()) return alert('Save room first');
-      const data = snap.data();
-      const names = data.players || [];
-      await updateDoc(ref, {
-        round: (data.round||0)+1,
-        seed: randomId(10),
-        impIndex: Math.floor(Math.random()*names.length)
-      });
-    };
-
-    $('#nextRound').onclick = async ()=>{
-      $('#startRound').click();
-    };
-
-  } else {
-    // PLAYER VIEW
-    const room = roomParam;
-    const yourNameFromUrl = params.get('name') || '';
-
-    $('#app').innerHTML = `
-      <div class="h1">🎭 Uni Imposter — Player</div>
-      <div class="card">
-        <div class="row" style="align-items:center;justify-content:space-between;">
-          <div class="pill">Room: <span class="mono">${escapeHtml(room)}</span></div>
-          <div class="pill">Status: <span id="status">Waiting for host…</span></div>
-        </div>
-
-        <label class="mt16">Your name</label>
-        <input id="yourName" type="text" placeholder="Type your name" value="${escapeHtml(yourNameFromUrl)}" />
-        <div class="small mt8">Tip: the host pre-defined a player list; use the same spelling.</div>
-
-        <label class="mt16">Your prompt</label>
-        <div id="prompt" class="qbox">Waiting for the host to start the round…</div>
-
-        <label class="mt16">Your answer</label>
-        <textarea id="answer" class="textarea" placeholder="Type a short answer"></textarea>
-
-        <div class="mt16 small">We don’t show roles anywhere. If your prompt feels a bit different, you might be the impostor — but you won’t be told.</div>
-
-        <div class="mt24"><a class="btn ghost" href="${location.origin + location.pathname}">Host view</a></div>
-      </div>`;
-
-    const promptEl = $('#prompt');
-    const statusEl = $('#status');
-    const nameEl = $('#yourName');
-
-    const ref = doc(db,'rooms',room);
-    onSnapshot(ref, (snap)=>{
-      if(!snap.exists()){
-        statusEl.textContent = 'Room not found (ask host to create it)';
-        return;
-      }
-      const data = snap.data();
-      const names = data.players || [];
-      const round = data.round || 0;
-      const seed = data.seed || '';
-      const impIndex = data.impIndex ?? -1;
-
-      if(round<=0){ statusEl.textContent = 'Waiting for host…'; return; }
-
-      statusEl.textContent = `Round ${round}`;
-
-      // Build deterministic RNG from (room|seed)
-      const base = fnv1a(room + '|' + seed);
-      const rng = xs32(base);
-      const n = QUESTION_POOL.length;
-
-      // Civilians use first index; impostor uses next different
-      const commonIdx = nextIndex(rng, n);
-      let impostorIdx = commonIdx; while(impostorIdx===commonIdx) impostorIdx = nextIndex(rng, n);
-
-      // Determine if *this device's name* matches impostor slot (hidden)
-      const your = (nameEl.value || '').trim();
-      // By convention, the host entered an ordered list. We map by index.
-      const yourIndex = Math.max(0, names.findIndex(x=>x.toLowerCase() === your.toLowerCase()));
-      const isImposter = (yourIndex === impIndex);
-
-      const qText = QUESTION_POOL[ isImposter ? impostorIdx : commonIdx ];
-      promptEl.textContent = qText || '—';
-
-      // Persist answer per round
-      const key = `ans:${room}:${your}:${round}`;
-      const ans = $('#answer');
-      ans.value = localStorage.getItem(key) || '';
-      ans.oninput = ()=> localStorage.setItem(key, ans.value);
-    });
-  }
-}
-
-/* -------------- helpers --------------- */
 function addNameChip(val=""){
-  const names = $('#names');
-  const chip = document.createElement('div');
-  chip.className = 'chip';
+  const names = $("#names");
+  const chip = document.createElement("div");
+  chip.className = "chip";
   chip.innerHTML = `<input type="text" placeholder="Player name" value="${escapeHtml(val)}" />
                     <button title="Remove" aria-label="Remove">×</button>`;
-  chip.querySelector('button').onclick = () => chip.remove();
+  chip.querySelector("button").onclick = ()=> chip.remove();
   names.appendChild(chip);
+}
+
+function hostView(){
+  const root = $("#app");
+  root.innerHTML = `
+    <div class="h1">🎭 Uni Imposter — Realtime (host)</div>
+    <div class="card">
+      <div class="row">
+        <div class="col">
+          <label>Room code</label>
+          <input id="roomCode" type="text" placeholder="e.g. WARW-2025" />
+          <div class="small">Use letters/numbers (this becomes the Firestore doc id).</div>
+
+          <label class="mt16">Players (enter names)</label>
+          <div id="names" class="names"></div>
+          <button class="btn ghost mt8" id="addPlayer">+ Add player</button>
+
+          <div class="mt16">
+            <button class="btn primary" id="saveRoom">Create/Update room</button>
+            <button class="btn ghost" id="startRound">Start round</button>
+            <button class="btn ghost" id="nextRound">Play again (new round)</button>
+          </div>
+          <div class="small mt8">Links for players: share a single URL →
+            <span class="qbox">${location.origin + location.pathname}?room=YOURCODE</span></div>
+        </div>
+        <div class="col">
+          <label>Current state</label>
+          <div id="state" class="qbox small">No room yet.</div>
+          <div class="small mt8">Host never sees questions or roles.</div>
+        </div>
+      </div>
+    </div>`;
+  for(let i=0;i<8;i++) addNameChip();
+  $("#addPlayer").onclick = ()=> addNameChip();
+  $("#saveRoom").onclick = saveRoom;
+  $("#startRound").onclick = startRound;
+  $("#nextRound").onclick = startRound;
+}
+
+async function saveRoom(){
+  const room = $("#roomCode").value.trim();
+  if(!room) return alert("Enter a room code");
+  const names = Array.from($("#names").querySelectorAll("input")).map(i=>i.value.trim()).filter(Boolean);
+  if(names.length < 3) return alert("Add at least 3 player names");
+  const ref = doc(db,"rooms",room);
+  await setDoc(ref, {
+    createdAt: serverTimestamp(),
+    players: names,
+    round: 0,
+    seed: randomId(),
+    impIndex: Math.floor(Math.random()*names.length)
+  }, { merge:true });
+  $("#state").innerHTML = `<div>Room: <b>${escapeHtml(room)}</b></div>
+    <div>Players: ${names.map(n=>`<span class="chip">${escapeHtml(n)}</span>`).join(" ")}</div>
+    <div class="small">Share: ${location.origin + location.pathname}?room=${encodeURIComponent(room)}</div>`;
+  alert("Room saved. Share the link above.");
+}
+
+async function startRound(){
+  const room = $("#roomCode").value.trim();
+  if(!room) return alert("Enter a room code");
+  const ref = doc(db,"rooms",room);
+  const snap = await getDoc(ref); if(!snap.exists()) return alert("Save room first");
+  const data = snap.data(); const names = data.players || [];
+  await updateDoc(ref, {
+    round: (data.round||0)+1,
+    seed: randomId(),
+    impIndex: Math.floor(Math.random()*names.length)
+  });
+}
+
+function playerView(room){
+  const root = $("#app");
+  root.innerHTML = `
+    <div class="h1">🎭 Uni Imposter — Player</div>
+    <div class="card">
+      <div class="row" style="align-items:center;justify-content:space-between;">
+        <div>Room: <b>${escapeHtml(room)}</b></div>
+        <div>Status: <span id="status">Waiting…</span></div>
+      </div>
+      <label class="mt16">Your name</label>
+      <input id="yourName" type="text" placeholder="Type your name" />
+      <label class="mt16">Your prompt</label>
+      <div id="prompt" class="qbox">Waiting for the host to start the round…</div>
+      <label class="mt16">Your answer</label>
+      <textarea id="answer" class="textarea" placeholder="Type a short answer"></textarea>
+      <div class="mt16"><a class="btn ghost" href="${location.origin + location.pathname}">Host view</a></div>
+    </div>`;
+  const promptEl = $("#prompt");
+  const statusEl = $("#status");
+  const nameEl = $("#yourName");
+  const ref = doc(db,"rooms",room);
+  onSnapshot(ref, (snap)=>{
+    if(!snap.exists()){ statusEl.textContent = "Room not found"; return; }
+    const data = snap.data();
+    const names = data.players || [];
+    const round = data.round || 0;
+    const seed = data.seed || "";
+    const impIndex = data.impIndex ?? -1;
+    if(round<=0){ statusEl.textContent = "Waiting for host…"; return; }
+    statusEl.textContent = `Round ${round}`;
+
+    // deterministic pick
+    const base = fnv1a(room + "|" + seed);
+    const rng = xs32(base);
+    const n = QUESTION_POOL.length;
+    const commonIdx = nextIndex(rng,n);
+    let impostorIdx = commonIdx; while(impostorIdx===commonIdx) impostorIdx = nextIndex(rng,n);
+
+    const your = (nameEl.value || "").trim();
+    const yourIndex = Math.max(0, names.findIndex(x=>x.toLowerCase()===your.toLowerCase()));
+    const isImposter = (yourIndex === impIndex);
+    promptEl.textContent = QUESTION_POOL[ isImposter ? impostorIdx : commonIdx ] || "—";
+  });
+}
+
+function render(){
+  if(!roomParam) hostView();
+  else playerView(roomParam);
 }
 </script>
 </body>
