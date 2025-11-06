@@ -1,0 +1,51 @@
+# Ignore datasets and big exports
+/sequences/
+/onnx_exports/
+/configs/
+/csv/
+
+# Ignore all models by default
+/models/*
+
+# …but allow only specific ones
+!/models/stage2_hm_best_epoch260.pth
+!/models/stage2_v7_best_epoch160.pth
+!/models/stage1_hm_best_epoch25.pth
+
+# experimental scripts
+/scripts/blank_fragment_constructor.py
+/scripts/crap_engine.py
+/scripts/fragment_constructor.py
+/scripts/hugging_face_downloader.py
+/scripts/index_dataset.py
+/scripts/inference_visualization_*
+/scripts/performance_engine.py
+/scripts/smart_engine.py
+/scripts/test.py
+/scripts/test_dataset_dataloader.py
+
+# Ignore IDE files
+/.idea/
+/.vscode/
+/.gradient/
+*.log
+*.tmp
+*.swp
+
+# Ignore outputs and logs
+/outputs/
+/temp_save/
+/site/
+*.ckpt
+*.pt
+*.onnx
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore system files
+.DS_Store
+Thumbs.db
