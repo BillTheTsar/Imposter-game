@@ -84,7 +84,6 @@ const QUESTION_POOL = [
   "Who would be the main character in a department scandal?",
   "Who secretly enjoys 9 am lectures?",
   "Who most likely has a definitely NSFW shrine in their room?",
-  "Who would pay to print black and white lecture notes in full color 'just in case' there is color somewhere?",
   "Who treats LaTeX like a personality trait?",
   "Who is already 'emotionally retired' from academia?",
   "You walk out from an exam you just bombed. Who do you talk to first?",
@@ -133,7 +132,6 @@ const QUESTION_POOL = [
   "Who would fall in love with the barista because of 'vibe resonance'?",
   "Who uses their phone background to reflect character development?",
   "Who pretends their love life is complicated when it's actually just nonexistent?",
-
 ];
 
 // ===== Utils =====
@@ -145,6 +143,15 @@ const randomId = (n=10)=> Array.from(crypto.getRandomValues(new Uint8Array(n))).
 const fnv1a = s=>{let h=0x811c9dc5>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;};
 const xs32 = seed=>{let x=seed>>>0;return()=>{x^=x<<13;x>>>=0;x^=x>>>17;x>>>=0;x^=x<<5;x>>>=0;return x>>>0;};};
 const nextIndex=(rng,n)=> rng()%n;
+// Deterministic Fisher–Yates shuffle (stable across browsers)
+function deterministicShuffle(arr, rng) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = rng() % (i + 1);
+    const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+  }
+  return a;
+}
 
 // ===== Presence/claims =====
 const CLIENT_ID_KEY = 'imposter:clientId';
@@ -258,53 +265,71 @@ function playerView(room){
   const ref = doc(db,'rooms',room);
   onSnapshot(ref, async (snap)=>{
     if(!snap.exists()){ $('#status').textContent='Room not found'; return; }
-    const data = snap.data();
-    const names = data.players||[]; const round = data.round||0; const seed = data.seed||''; const impIndex = data.impIndex ?? -1; const claims = data.claims||{};
+    const data  = snap.data();
+    const names = data.players || [];
+    const round = data.round   || 0;
+    const seed  = data.seed    || '';
+    const impIndex = data.impIndex ?? -1;
+    const claims   = data.claims   || {};
 
-    // Build name choice UI with claim locking
-    const claimedBy = {}; Object.entries(claims).forEach(([cid,val])=>{ if(val && val.name) claimedBy[val.name]=cid; });
-    const myClaim = claims[clientId];
+    // ----- build/refresh the claim buttons (unchanged from your version) -----
+    const claimedBy = {};
+    Object.entries(claims).forEach(([cid,val]) => { if (val && val.name) claimedBy[val.name] = cid; });
+
+    const myClaim   = claims[clientId];
     const container = $('#nameChoices');
-    if(!container.dataset.rendered || container.dataset.rendered!==JSON.stringify(claims)){
-      container.innerHTML = names.map((n)=>{
-        const locked = claimedBy[n] && claimedBy[n]!==clientId;
-        return `<button class="btn ${locked?'ghost':'primary'}" data-name="${escapeHtml(n)}" ${locked?'disabled':''}>${escapeHtml(n)}${locked?' (taken)':''}</button>`;
+
+    if (!container.dataset.rendered || container.dataset.rendered !== JSON.stringify(claims)) {
+      container.innerHTML = names.map((n) => {
+        const locked = claimedBy[n] && claimedBy[n] !== clientId;
+        return `<button class="btn ${locked ? 'ghost' : 'primary'}" data-name="${escapeHtml(n)}" ${locked ? 'disabled' : ''}>
+                  ${escapeHtml(n)}${locked ? ' (taken)' : ''}
+                </button>`;
       }).join(' ');
       container.dataset.rendered = JSON.stringify(claims);
-      container.querySelectorAll('button').forEach(btn=>{
-        btn.onclick = async ()=>{
+      container.querySelectorAll('button').forEach(btn => {
+        btn.onclick = async () => {
           const chosen = btn.getAttribute('data-name');
           await updateDoc(ref, { [`claims.${clientId}`]: { name: chosen, at: serverTimestamp() } });
         };
       });
     }
 
-    // If we have a claim, compute prompt
+    // ----- identity & status -----
     const myName = (myClaim && myClaim.name) ? myClaim.name : null;
-    if(!myName){ $('#status').textContent = 'Pick your name'; $('#prompt').textContent='—'; return; }
-    const yourIndex = Math.max(0, names.findIndex(x=>x.toLowerCase()===myName.toLowerCase()));
-    $('#status').textContent = `You are: ${escapeHtml(myName)} • ${round>0?('Round '+round):'waiting for host'}`;
+    if (!myName) { $('#status').textContent = 'Pick your name'; $('#prompt').textContent = '—'; return; }
 
-    if(round<=0){ $('#prompt').textContent='Waiting for host…'; return; }
+    const yourIndex = names.findIndex(x => x.toLowerCase() === myName.toLowerCase());
+    if (yourIndex === -1) { $('#status').textContent = 'Name not in host list'; $('#prompt').textContent = '—'; return; }
 
-    // Generate a deterministic shuffle for the room itself (does NOT change every round)
+    $('#status').textContent = `You are: ${escapeHtml(myName)} • ${round > 0 ? ('Round ' + round) : 'waiting for host'}`;
+
+    if (round <= 0) { $('#prompt').textContent = 'Waiting for host…'; return; }
+
+    // ----- stable per-room deck (same order on all devices) -----
     const roomBase = fnv1a(room);
-    const roomRng = xs32(roomBase);
-    const shuffled = QUESTION_POOL.slice().sort(() => (roomRng() % 2 ? 1 : -1));
+    const roomRng  = xs32(roomBase);
+    const shuffled = deterministicShuffle(QUESTION_POOL, roomRng);
 
-    // Now round randomness picks positions in the *shuffled* deck
+    // ----- round randomness (same pick on all devices) -----
     const base = fnv1a(room + '|' + seed);
-    const rng = xs32(base);
-    const n = shuffled.length;
+    const rng  = xs32(base);
+    const n    = shuffled.length;
+
     const isImposter = (yourIndex === impIndex);
 
     const commonIdx = nextIndex(rng, n);
     let impostorIdx = commonIdx;
-    while(impostorIdx === commonIdx) impostorIdx = nextIndex(rng, n);
+    while (impostorIdx === commonIdx) impostorIdx = nextIndex(rng, n);
+
+    // ----- final prompt (ONLY from shuffled) -----
     $('#prompt').textContent = shuffled[ isImposter ? impostorIdx : commonIdx ] || '—';
 
-    // persist answer per round per client
-    const key = `ans:${room}:${clientId}:${round}`; const ans = $('#answer'); ans.value = localStorage.getItem(key)||''; ans.oninput=()=>localStorage.setItem(key, ans.value);
+    // ----- persist answer text locally -----
+    const key = `ans:${room}:${clientId}:${round}`;
+    const ans = $('#answer');
+    ans.value = localStorage.getItem(key) || '';
+    ans.oninput = () => localStorage.setItem(key, ans.value);
   });
 }
 
